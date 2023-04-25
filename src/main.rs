@@ -1,4 +1,4 @@
-use std::path::PathBuf;
+use std::{path::PathBuf, process::exit};
 
 use clap::{Parser, Subcommand};
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
@@ -8,6 +8,10 @@ use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 struct Cli {
     #[command(subcommand)]
     command: Commands,
+
+    /// output file
+    #[arg(short, long)]
+    output: Option<PathBuf>,
 }
 
 #[derive(Subcommand)]
@@ -26,51 +30,79 @@ enum Commands {
     },
 }
 
+enum VeilError {
+    EncryptionError,
+    DecryptionError,
+}
+
+impl VeilError {
+    fn handle(self) {
+        match self {
+            VeilError::EncryptionError => {
+                eprintln!("Failed to encrypt file");
+                exit(1);
+            }
+            VeilError::DecryptionError => {
+                eprintln!("Failed to decrypt file");
+                exit(1);
+            }
+        }
+    }
+}
+
 fn get_password() -> String {
     let password = rpassword::prompt_password("Password: ").unwrap();
     return password;
 }
 
-fn encrypt(file_name: PathBuf, password: String) {
-    // read file binary
-    let file = std::fs::read(file_name.clone()).expect("Unable to read file");
+fn encrypt(file_path: PathBuf, password: String) -> Result<Vec<u8>, VeilError> {
+    let file = std::fs::read(file_path).map_err(|_| VeilError::EncryptionError)?;
 
-    // ask for password
     let mc = new_magic_crypt!(password, 256);
-
     let encrypted_file = mc.encrypt_bytes_to_bytes(&file);
 
-    let new_file_name = format!("{}.enc", file_name.to_str().unwrap());
-
-    // write encrypted file
-    std::fs::write(new_file_name, encrypted_file).expect("Unable to write file");
+    Ok(encrypted_file)
 }
 
-fn decrypt(file: PathBuf, password: String) {
-    // read file binary
-    let file = std::fs::read(file).expect("Unable to read file");
+fn decrypt(file_path: PathBuf, password: String) -> Result<Vec<u8>, VeilError> {
+    let file = std::fs::read(file_path).map_err(|_| VeilError::DecryptionError)?;
 
-    // ask for password
     let mc = new_magic_crypt!(password, 256);
 
-    if let Ok(decrypted_file) = mc.decrypt_bytes_to_bytes(&file) {
-        std::fs::write("test.txt.dec", decrypted_file).expect("Unable to write file");
-    } else {
-        eprintln!("Invalid password");
-    }
+    let decrypted_file = mc
+        .decrypt_bytes_to_bytes(&file)
+        .map_err(|_| VeilError::DecryptionError)?;
+
+    Ok(decrypted_file)
 }
 
 fn main() {
     let cli = Cli::parse();
 
-    match cli.command {
+    let result = match cli.command {
         Commands::Lock { file } => {
             let password = get_password();
-            encrypt(file, password);
+            encrypt(file, password)
         }
         Commands::Unlock { file } => {
             let password = get_password();
-            decrypt(file, password);
+            decrypt(file, password)
         }
+    };
+
+    let mut output_file = PathBuf::from("out");
+
+    if let Some(output) = cli.output {
+        output_file = output;
+    }
+
+    match result {
+        Ok(content) => {
+            std::fs::write(output_file, content).unwrap_or_else(|_| {
+                eprintln!("Unable to write to file");
+                exit(1);
+            });
+        }
+        Err(e) => e.handle(),
     }
 }
