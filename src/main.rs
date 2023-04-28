@@ -1,108 +1,84 @@
 use std::{path::PathBuf, process::exit};
 
-use clap::{Parser, Subcommand};
+use anyhow::{Context, Result};
+
+use clap::{ArgAction, Parser};
 use magic_crypt::{new_magic_crypt, MagicCryptTrait};
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
-    #[command(subcommand)]
-    command: Commands,
-
     /// output file
     #[arg(short, long)]
     output: Option<PathBuf>,
+
+    /// decrypt instead of encrypt
+    #[arg(short, long, action = ArgAction::SetTrue)]
+    decrypt: bool,
+
+    /// input file
+    #[arg()]
+    input: PathBuf,
 }
 
-#[derive(Subcommand)]
-enum Commands {
-    /// encrypt file
-    Lock {
-        /// file to encrypt
-        #[arg(value_name = "FILE")]
-        file: PathBuf,
-    },
-    /// decrypt file
-    Unlock {
-        /// file to decrypt
-        #[arg(value_name = "FILE")]
-        file: PathBuf,
-    },
+fn get_password() -> Result<String> {
+    rpassword::prompt_password("Password: ").context("Failed to get password")
 }
 
-enum VeilError {
-    EncryptionError,
-    DecryptionError,
+fn read_file_as_bytes(file_path: PathBuf) -> Result<Vec<u8>> {
+    std::fs::read(file_path).context("Failed to read file")
 }
 
-impl VeilError {
-    fn handle(self) {
-        match self {
-            VeilError::EncryptionError => {
-                eprintln!("Failed to encrypt file");
-                exit(1);
-            }
-            VeilError::DecryptionError => {
-                eprintln!("Failed to decrypt file");
-                exit(1);
-            }
-        }
-    }
+fn write_file_as_bytes(file_path: PathBuf, bytes: Vec<u8>) -> Result<()> {
+    std::fs::write(file_path, bytes).context("Failed to write file")
 }
 
-fn get_password() -> String {
-    let password = rpassword::prompt_password("Password: ").unwrap();
-    return password;
-}
-
-fn encrypt(file_path: PathBuf, password: String) -> Result<Vec<u8>, VeilError> {
-    let file = std::fs::read(file_path).map_err(|_| VeilError::EncryptionError)?;
-
+fn encrypt_bytes(bytes: Vec<u8>, password: String) -> Result<Vec<u8>> {
     let mc = new_magic_crypt!(password, 256);
-    let encrypted_file = mc.encrypt_bytes_to_bytes(&file);
+    let encrypted_file = mc.encrypt_bytes_to_bytes(&bytes);
 
     Ok(encrypted_file)
 }
 
-fn decrypt(file_path: PathBuf, password: String) -> Result<Vec<u8>, VeilError> {
-    let file = std::fs::read(file_path).map_err(|_| VeilError::DecryptionError)?;
-
+fn decrypt_bytes(bytes: Vec<u8>, password: String) -> Result<Vec<u8>> {
     let mc = new_magic_crypt!(password, 256);
 
     let decrypted_file = mc
-        .decrypt_bytes_to_bytes(&file)
-        .map_err(|_| VeilError::DecryptionError)?;
+        .decrypt_bytes_to_bytes(&bytes)
+        .context("Failed to decrypt file")?;
 
     Ok(decrypted_file)
 }
 
-fn main() {
-    let cli = Cli::parse();
+fn run(cli: Cli) -> Result<()> {
+    let file_path = cli.input;
+    let input_bytes = read_file_as_bytes(file_path)?;
 
-    let result = match cli.command {
-        Commands::Lock { file } => {
-            let password = get_password();
-            encrypt(file, password)
-        }
-        Commands::Unlock { file } => {
-            let password = get_password();
-            decrypt(file, password)
-        }
+    let password = get_password()?;
+
+    let output_bytes = if cli.decrypt {
+        decrypt_bytes(input_bytes, password)?
+    } else {
+        encrypt_bytes(input_bytes, password)?
     };
 
     let mut output_file = PathBuf::from("out");
-
     if let Some(output) = cli.output {
         output_file = output;
     }
 
-    match result {
-        Ok(content) => {
-            std::fs::write(output_file, content).unwrap_or_else(|_| {
-                eprintln!("Unable to write to file");
-                exit(1);
-            });
+    write_file_as_bytes(output_file, output_bytes)?;
+
+    Ok(())
+}
+
+fn main() {
+    let cli = Cli::parse();
+    match run(cli) {
+        Ok(_) => {}
+        Err(err) => {
+            eprintln!("{}", err.to_string());
+            exit(1);
         }
-        Err(e) => e.handle(),
     }
 }
