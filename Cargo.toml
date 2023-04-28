@@ -7,6 +7,7 @@ edition = "2021"
 
 [dependencies]
 anyhow = "1.0.70"
+base64_light = "0.1.5"
 clap = { version = "4.2.4", features = ["derive"] }
 magic-crypt = "3.1.12"
 rpassword = "7.2.0"
