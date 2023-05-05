@@ -8,6 +8,7 @@ To install Veil, you will need to have Rust installed on your machine. Once you 
 
 ```shell
 git clone https://github.com/sndrnz/veil.git
+cd veil
 cargo install --path .
 ```
 
