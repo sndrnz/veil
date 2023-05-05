@@ -1,4 +1,4 @@
-use crate::cli::{Cli, Format};
+use crate::cli::Cli;
 use crate::crypt::*;
 use crate::utils::*;
 use anyhow::{Context, Result};
@@ -20,11 +20,10 @@ mod utils;
 ///
 /// * `Result<()>` - The result of the operation
 pub fn run(cli: Cli) -> Result<()> {
-    let file_path = cli.input.clone();
-
-    let input_bytes = match cli.input_format {
-        Format::Bytes => read_file_as_bytes(file_path)?,
-        Format::Base64 => read_file_as_base64(file_path)?,
+    let input_bytes = if let Some(input_file) = cli.input_file.clone() {
+        read_bytes_from_file(input_file)?
+    } else {
+        read_bytes_from_stdin()?
     };
 
     let prompt_text = if cli.decrypt {
@@ -40,26 +39,15 @@ pub fn run(cli: Cli) -> Result<()> {
         encrypt_bytes(input_bytes, password)?
     };
 
-    let output_file = match cli.output {
-        Some(output_file) => output_file,
-        None => {
-            let mut path = cli.input.clone();
-            if cli.decrypt {
-                append_extension(&mut path, "dec");
-            } else {
-                append_extension(&mut path, "enc");
-            }
-            path
-        }
-    };
-
-    match cli.output_format {
-        Format::Bytes => write_file_as_bytes(output_file, output_bytes)?,
-        Format::Base64 => write_file_as_base64(output_file, output_bytes)?,
+    // output the bytes to a file or stdout
+    if let Some(output_file) = cli.output_file {
+        write_bytes_to_file(output_file, output_bytes)?;
+    } else {
+        write_bytes_to_stdout(output_bytes)?;
     }
 
-    if cli.remove {
-        fs::remove_file(cli.input).context("Failed to remove file")?;
+    if let (Some(input_file), true) = (cli.input_file, cli.remove) {
+        fs::remove_file(input_file).context("Failed to remove file")?;
     }
 
     Ok(())
