@@ -70,7 +70,7 @@ fn main() {
     match run(cli) {
         Ok(_) => {}
         Err(err) => {
-            eprintln!("{}", err.to_string());
+            eprintln!("Error: {}", err.to_string());
             exit(1);
         }
     }
