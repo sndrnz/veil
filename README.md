@@ -17,44 +17,15 @@ cargo install --path .
 Veil is a command line tool that allows you to encrypt and decrypt files. Here is a summary of the available options:
 
 ```shell
-Usage: veil [OPTIONS] --input <FILE>
+Usage: veil [OPTIONS]
 
 Options:
-  -i, --input <FILE>
-          Input file
-
-  -o, --output <FILE>
-          Output file
-
-  -d, --decrypt
-          Decrypt input
-
-  -r, --remove
-          Remove input file
-
-  -f, --input-format <FORMAT>
-          Input format
-
-          [default: bytes]
-
-          Possible values:
-          - bytes:  Output as bytes
-          - base64: Output as Base64 encoded string
-
-  -F, --output-format <FORMAT>
-          Output format
-
-          [default: bytes]
-
-          Possible values:
-          - bytes:  Output as bytes
-          - base64: Output as Base64 encoded string
-
-  -h, --help
-          Print help (see a summary with '-h')
-
-  -V, --version
-          Print version
+  -i, --input <FILE>   Input file, defaults to stdin
+  -o, --output <FILE>  Output file, defaults to stdout
+  -d, --decrypt        Decrypt input
+  -r, --remove         Remove input file
+  -h, --help           Print help
+  -V, --version        Print version
 ```
 
 To encrypt a file, run the following command:

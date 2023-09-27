@@ -21,8 +21,12 @@ fn generate_completion(
 fn main() -> Result<(), Box<dyn Error>> {
     println!("cargo:rerun-if-changed=cli.rs");
 
-    let cwd = env::current_dir()?;
-    let out_dir = cwd.join("completions");
+    // get cargo out dir
+
+    let out_dir = match env::var_os("OUT_DIR") {
+        None => return Ok(()),
+        Some(out_dir) => PathBuf::from(out_dir).join("completions"),
+    };
 
     if !out_dir.exists() {
         std::fs::create_dir(&out_dir)?;
